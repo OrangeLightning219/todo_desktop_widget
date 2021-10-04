@@ -8,6 +8,13 @@
 #define X_WINDOW_POSITION 31
 #define Y_WINDOW_POSITION 32
 
+typedef struct Panel
+{
+    int x;
+    int y;
+    bool active;
+} Panel;
+
 int AdjustWindowSize(int windowWidth)
 {
     int windowHeight = GetMonitorHeight(GetCurrentMonitor()) * 0.8;
@@ -15,7 +22,7 @@ int AdjustWindowSize(int windowWidth)
     return windowHeight;
 }
 
-char *getWeekday(char *weekdays[7], int day)
+char *GetWeekday(char *weekdays[7], int day)
 {
     time_t t = time(NULL);
     struct tm now = *localtime(&t);
@@ -27,7 +34,8 @@ char *getWeekday(char *weekdays[7], int day)
 
 int main(void)
 {
-    const int windowWidth = 200;
+    int windowWidth = 200;
+    int extendedWindowWidth = 500;
     int windowHeight = 200;
 
     char *weekdays[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
@@ -46,6 +54,13 @@ int main(void)
 
     int buttonSpacing = 10;
     int buttonSize = (windowHeight / 31) - buttonSpacing;
+    int panelOffset = 10;
+    int panelWidth = extendedWindowWidth - buttonSize - panelOffset;
+    int panelHeight = 20 * buttonSize;
+    Panel currentPanel;
+
+    windowWidth = buttonSize;
+    SetWindowSize(windowWidth, windowHeight);
 
     Image baseButtonsImage = LoadImage("resources/buttons_texture.png");
     ImageResize(&baseButtonsImage, buttonSize * 7, buttonSize * 5);
@@ -82,11 +97,26 @@ int main(void)
     
     int deltaX = 0, deltaY = 0;
     Vector2 windowPosition = GetWindowPosition();
+    int dayButtonClicked = -1;
+
     while (!WindowShouldClose())
     {
+        buttonSize = (windowHeight / 31) - buttonSpacing;
+        int offsetY = (windowHeight - (((buttonSpacing + buttonSize) * daysInMonth[now.tm_mon]) - buttonSpacing)) / 2;
+
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
         {
             // setWindowOnBottom(GetWindowHandle());
+            // printf("mouse pressed\n");
+            int mouseX = GetMouseX();
+            int mouseY = GetMouseY();
+            int buttonCenter = offsetY + dayButtonClicked * buttonSize + dayButtonClicked * buttonSpacing + buttonSize / 2;
+            if (currentPanel.active && dayButtonClicked != -1 && mouseX > buttonSize && (mouseY < currentPanel.y || mouseY > currentPanel.y + panelHeight))
+            {
+                dayButtonClicked = -1;
+                SetWindowSize(windowWidth, windowHeight);
+                currentPanel.active = false;
+            }
             windowPosition = GetWindowPosition();
             deltaX = GetMouseX();
             deltaY = GetMouseY();
@@ -134,13 +164,10 @@ int main(void)
                 SaveStorageValue(Y_WINDOW_POSITION, windowPosition.y);
             }
         }
-        ClearBackground(BLANK);
-        // ClearBackground((Color){0, 0, 0, 150});
+        // ClearBackground(BLANK);
+        ClearBackground((Color){0, 0, 0, 150});
 
         BeginDrawing();
-
-        buttonSize = (windowHeight / 31) - buttonSpacing;
-        int offsetY = (windowHeight - (((buttonSpacing + buttonSize) * daysInMonth[now.tm_mon]) - buttonSpacing)) / 2;
         for (int i = 0; i < daysInMonth[now.tm_mon]; ++i)
         {
             Texture2D *buttonTexture;
@@ -159,12 +186,42 @@ int main(void)
             }
             if (GuiTextureButtonEx((Rectangle){0, offsetY + i * buttonSize + i * buttonSpacing, buttonSize, buttonSize}, "", *buttonTexture, (Rectangle){(i % 7) * buttonSize, (i / 7) * buttonSize, buttonSize, buttonSize}))
             {
-                // printf("clicked day: %s", getWeekday(weekdays, i + 1));
-                daysCompleted[i] = true;
-                SaveStorageValue(i, 1);
+                // printf("clicked day: %s\n", GetWeekday(weekdays, i + 1));
+                if (dayButtonClicked == i)
+                {
+                    dayButtonClicked = -1;
+                    SetWindowSize(windowWidth, windowHeight);
+                    currentPanel.active = false;
+                }
+                else
+                {
+                    dayButtonClicked = i;
+                }
+                // daysCompleted[i] = true;
+                // SaveStorageValue(i, 1);
             }
         }
 
+        if (dayButtonClicked != -1)
+        {
+            if (GetScreenWidth() != extendedWindowWidth)
+            {
+                SetWindowSize(extendedWindowWidth, windowHeight);
+            }
+            int buttonCenter = offsetY + dayButtonClicked * buttonSize + dayButtonClicked * buttonSpacing + buttonSize / 2;
+            int panelY = buttonCenter - panelHeight / 2;
+            if (buttonCenter + panelHeight / 2 > GetScreenHeight())
+            {
+                panelY -= (buttonCenter + panelHeight / 2) - GetScreenHeight();
+            }
+            else if (buttonCenter - panelHeight / 2 < 0)
+            {
+                panelY = 0;
+            }
+            currentPanel = (Panel){buttonSize + panelOffset, panelY, true};
+            DrawRectangle(currentPanel.x, currentPanel.y, panelWidth, panelHeight, GRAY);
+            DrawText(GetWeekday(weekdays, dayButtonClicked + 1), currentPanel.x, currentPanel.y, 30, RED);
+        }
         EndDrawing();
     }
 
