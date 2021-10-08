@@ -12,7 +12,6 @@ typedef struct Panel
 {
     int x;
     int y;
-    bool active;
 } Panel;
 
 int AdjustWindowSize()
@@ -77,6 +76,8 @@ int main(void)
     UnloadImage(completedButtonsImage);
     UnloadImage(currentButtonsImage);
 
+    Shader panelShader = LoadShader(0, "resources/panel_shader.fs");
+
     bool daysCompleted[31];
     if(now.tm_mday == 1)
     {
@@ -98,6 +99,12 @@ int main(void)
     Vector2 windowPosition = GetWindowPosition();
     int dayButtonClicked = -1;
 
+    int panelSizeLoc = GetShaderLocation(panelShader, "uPanelSize");
+    int xPositionLoc = GetShaderLocation(panelShader, "xPosition");
+    int yPositionLoc = GetShaderLocation(panelShader, "yPosition");
+
+    SetShaderValue(panelShader, panelSizeLoc, &(Vector2){panelWidth, panelHeight}, SHADER_UNIFORM_VEC2);
+
     while (!WindowShouldClose())
     {
         buttonSize = (windowHeight / 31) - buttonSpacing;
@@ -106,15 +113,14 @@ int main(void)
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
         {
             // setWindowOnBottom(GetWindowHandle());
-            // printf("mouse pressed\n");
             int mouseX = GetMouseX();
             int mouseY = GetMouseY();
             int buttonCenter = offsetY + dayButtonClicked * buttonSize + dayButtonClicked * buttonSpacing + buttonSize / 2;
-            if (currentPanel.active && dayButtonClicked != -1 && mouseX > buttonSize && (mouseY < currentPanel.y || mouseY > currentPanel.y + panelHeight))
+            if (dayButtonClicked != -1 && mouseX > buttonSize && (mouseY < currentPanel.y || mouseY > currentPanel.y + panelHeight))
             {
                 dayButtonClicked = -1;
                 SetWindowSize(windowWidth, windowHeight);
-                currentPanel.active = false;
+                // currentPanel.active = false;
             }
             windowPosition = GetWindowPosition();
             deltaX = GetMouseX();
@@ -129,7 +135,6 @@ int main(void)
             windowHeight = AdjustWindowSize();
             if (windowHeight != oldHeight)
             {
-                // ReloadTextures(&buttonsImage, &baseButtons, &completedButtons, &currentButtons, buttonSize);
                 UnloadTexture(baseButtons);
                 UnloadTexture(completedButtons);
                 UnloadTexture(currentButtons);
@@ -165,8 +170,8 @@ int main(void)
                 SaveStorageValue(Y_WINDOW_POSITION, windowPosition.y);
             }
         }
-        // ClearBackground(BLANK);
-        ClearBackground((Color){0, 0, 0, 150});
+        ClearBackground(BLANK);
+        // ClearBackground((Color){0, 0, 0, 150});
 
         BeginDrawing();
         for (int i = 0; i < daysInMonth[now.tm_mon]; ++i)
@@ -185,18 +190,32 @@ int main(void)
             {
                 buttonTexture = &baseButtons;
             }
+
             if (GuiTextureButtonEx((Rectangle){0, offsetY + i * buttonSize + i * buttonSpacing, buttonSize, buttonSize}, "", *buttonTexture, (Rectangle){(i % 7) * buttonSize, (i / 7) * buttonSize, buttonSize, buttonSize}))
             {
-                // printf("clicked day: %s\n", GetWeekday(weekdays, i + 1));
                 if (dayButtonClicked == i)
                 {
                     dayButtonClicked = -1;
                     SetWindowSize(windowWidth, windowHeight);
-                    currentPanel.active = false;
                 }
                 else
                 {
                     dayButtonClicked = i;
+                    int buttonCenter = offsetY + dayButtonClicked * buttonSize + dayButtonClicked * buttonSpacing + buttonSize / 2;
+                    int panelY = buttonCenter - panelHeight / 2;
+                    if (buttonCenter + panelHeight / 2 > GetScreenHeight())
+                    {
+                        panelY -= (buttonCenter + panelHeight / 2) - GetScreenHeight();
+                    }
+                    else if (buttonCenter - (panelHeight / 2 + buttonSize) < 0)
+                    {
+                        panelY = buttonSize;
+                    }
+                    currentPanel = (Panel){buttonSize + panelOffset, panelY};
+                    float xPosition = (float)currentPanel.x;
+                    float yPosition = (float)(GetScreenHeight() - currentPanel.y - panelHeight);
+                    SetShaderValue(panelShader, xPositionLoc, &xPosition, SHADER_UNIFORM_FLOAT);
+                    SetShaderValue(panelShader, yPositionLoc, &yPosition, SHADER_UNIFORM_FLOAT);
                 }
                 // daysCompleted[i] = true;
                 // SaveStorageValue(i, 1);
@@ -209,34 +228,36 @@ int main(void)
             {
                 SetWindowSize(extendedWindowWidth, windowHeight);
             }
-            int buttonCenter = offsetY + dayButtonClicked * buttonSize + dayButtonClicked * buttonSpacing + buttonSize / 2;
-            int panelY = buttonCenter - panelHeight / 2;
-            if (buttonCenter + panelHeight / 2 > GetScreenHeight())
-            {
-                panelY -= (buttonCenter + panelHeight / 2) - GetScreenHeight();
-            }
-            else if (buttonCenter - (panelHeight / 2 + buttonSize) < 0)
-            {
-                panelY = buttonSize;
-            }
-            currentPanel = (Panel){buttonSize + panelOffset, panelY, true};
-            DrawRectangle(currentPanel.x, currentPanel.y, panelWidth, panelHeight, GRAY);
+
+            BeginShaderMode(panelShader);
+            DrawRectangle(currentPanel.x, currentPanel.y, panelWidth, panelHeight, BLANK);
+            EndShaderMode();
+
             char *weekday = GetWeekday(weekdays, dayButtonClicked + 1);
             char buffer[14];
             snprintf(buffer, 14, "%s, %d", weekday, dayButtonClicked + 1);
-            DrawText(buffer, currentPanel.x + (panelWidth / 2 - MeasureText(buffer, 30) / 2), currentPanel.y - buttonSize / 2 - 15, 30, RED);
+            DrawText(buffer, currentPanel.x + (panelWidth / 2 - MeasureText(buffer, 30) / 2), currentPanel.y - buttonSize / 2 - 15, 30, WHITE);
 
             for (int i = panelHeight / 24; i < panelHeight; i += panelHeight / 24)
             {
-                DrawLine(currentPanel.x, currentPanel.y + i, currentPanel.x + panelWidth, currentPanel.y + i, RED);
+                DrawLine(currentPanel.x, currentPanel.y + i, currentPanel.x + panelWidth, currentPanel.y + i, DARKGRAY);
+            }
+
+            for (int i = 1; i < 24; ++i)
+            {
+                char number[6];
+                snprintf(number, 6, i < 10 ? "0%d:00" : "%d:00", i);
+                DrawText(number, currentPanel.x + 5, currentPanel.y + i * buttonSize - 20, 20, DARKGRAY);
             }
         }
+
         EndDrawing();
     }
 
     UnloadTexture(baseButtons);
     UnloadTexture(completedButtons);
     UnloadTexture(currentButtons);
+    UnloadShader(panelShader);
     CloseWindow();
 
     return 0;
