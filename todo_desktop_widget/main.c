@@ -15,10 +15,9 @@ typedef struct Panel
     bool active;
 } Panel;
 
-int AdjustWindowSize(int windowWidth)
+int AdjustWindowSize()
 {
     int windowHeight = GetMonitorHeight(GetCurrentMonitor()) * 0.8;
-    SetWindowSize(windowWidth, windowHeight);
     return windowHeight;
 }
 
@@ -50,13 +49,13 @@ int main(void)
     SetTargetFPS(60);
     //setWindowOnBottom(GetWindowHandle());
     SetWindowPosition(LoadStorageValue(X_WINDOW_POSITION), LoadStorageValue(Y_WINDOW_POSITION));
-    windowHeight = AdjustWindowSize(windowWidth);
+    windowHeight = AdjustWindowSize();
 
     int buttonSpacing = 10;
     int buttonSize = (windowHeight / 31) - buttonSpacing;
     int panelOffset = 10;
     int panelWidth = extendedWindowWidth - buttonSize - panelOffset;
-    int panelHeight = 20 * buttonSize;
+    int panelHeight = 24 * buttonSize;
     Panel currentPanel;
 
     windowWidth = buttonSize;
@@ -127,7 +126,7 @@ int main(void)
             Vector2 position = GetWindowPosition();
             SetWindowPosition((int)position.x + (GetMouseX() - deltaX), (int)position.y + (GetMouseY() - deltaY));
             int oldHeight = windowHeight;
-            windowHeight = AdjustWindowSize(windowWidth);
+            windowHeight = AdjustWindowSize();
             if (windowHeight != oldHeight)
             {
                 // ReloadTextures(&buttonsImage, &baseButtons, &completedButtons, &currentButtons, buttonSize);
@@ -136,6 +135,8 @@ int main(void)
                 UnloadTexture(currentButtons);
 
                 buttonSize = (windowHeight / 31) - buttonSpacing;
+                windowWidth = buttonSize;
+                SetWindowSize(windowWidth, windowHeight);
                 baseButtonsImage = LoadImage("resources/buttons_texture.png");
                 ImageResize(&baseButtonsImage, buttonSize * 7, buttonSize * 5);
                 baseButtons = LoadTextureFromImage(baseButtonsImage);
@@ -214,13 +215,21 @@ int main(void)
             {
                 panelY -= (buttonCenter + panelHeight / 2) - GetScreenHeight();
             }
-            else if (buttonCenter - panelHeight / 2 < 0)
+            else if (buttonCenter - (panelHeight / 2 + buttonSize) < 0)
             {
-                panelY = 0;
+                panelY = buttonSize;
             }
             currentPanel = (Panel){buttonSize + panelOffset, panelY, true};
             DrawRectangle(currentPanel.x, currentPanel.y, panelWidth, panelHeight, GRAY);
-            DrawText(GetWeekday(weekdays, dayButtonClicked + 1), currentPanel.x, currentPanel.y, 30, RED);
+            char *weekday = GetWeekday(weekdays, dayButtonClicked + 1);
+            char buffer[14];
+            snprintf(buffer, 14, "%s, %d", weekday, dayButtonClicked + 1);
+            DrawText(buffer, currentPanel.x + (panelWidth / 2 - MeasureText(buffer, 30) / 2), currentPanel.y - buttonSize / 2 - 15, 30, RED);
+
+            for (int i = panelHeight / 24; i < panelHeight; i += panelHeight / 24)
+            {
+                DrawLine(currentPanel.x, currentPanel.y + i, currentPanel.x + panelWidth, currentPanel.y + i, RED);
+            }
         }
         EndDrawing();
     }
