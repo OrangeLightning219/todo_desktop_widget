@@ -38,10 +38,8 @@ int GetNewWindowSize()
     return GetMonitorHeight(GetCurrentMonitor()) * 0.8;
 }
 
-char *GetWeekday(char *weekdays[7], int day)
+char *GetWeekday(char *weekdays[7], int day, struct tm now)
 {
-    time_t t = time(NULL);
-    struct tm now = *localtime(&t);
     int month = now.tm_mon + 1;
     int year = now.tm_year + 1900;
     int weekday = (day += month < 3 ? year-- : year - 2, 23 * month / 9 + day + 4 + year / 4 - year / 100 + year / 400) % 7;
@@ -70,8 +68,8 @@ void CreatePanel(Shader panelShader, int xPositionLoc, int yPositionLoc, int pan
 
 void RefreshWindow()
 {
-    time_t t = time(NULL);
-    struct tm now = *localtime(&t);
+    time_t timestamp = time(NULL);
+    struct tm now = *localtime(&timestamp);
 
     buttonSize = (windowHeight / 31) - buttonSpacing;
     windowWidth = buttonSize;
@@ -100,8 +98,8 @@ void RefreshWindow()
 
 int main(void)
 {
-    time_t t = time(NULL);
-    struct tm now = *localtime(&t);
+    time_t timestamp = time(NULL);
+    struct tm now = *localtime(&timestamp);
     daysInMonth[1] = (now.tm_year + 1900) % 4 == 0 ? 29 : 28;
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_TRANSPARENT | FLAG_WINDOW_UNDECORATED);
@@ -232,12 +230,14 @@ int main(void)
             {
                 SetWindowSize(extendedWindowWidth, windowHeight);
             }
+            timestamp = time(NULL);
+            now = *localtime(&timestamp);
 
             BeginShaderMode(panelShader);
             DrawRectangle(currentPanel.x, currentPanel.y, panelWidth, panelHeight, BLANK);
             EndShaderMode();
 
-            char *weekday = GetWeekday(weekdays, dayButtonClicked + 1);
+            char *weekday = GetWeekday(weekdays, dayButtonClicked + 1, now);
             char buffer[14];
             snprintf(buffer, 14, "%s, %d", weekday, dayButtonClicked + 1);
             DrawTextEx(headerFont, buffer, (Vector2){currentPanel.x + (panelWidth / 2 - MeasureTextEx(headerFont, buffer, 40, 1).x / 2), currentPanel.y - buttonSize / 2 - 20}, 40, 1, WHITE);
@@ -246,6 +246,10 @@ int main(void)
             {
                 DrawLine(currentPanel.x, currentPanel.y + i, currentPanel.x + panelWidth, currentPanel.y + i, DARKGRAY);
             }
+
+            int nowLineY = currentPanel.y + panelHeight * ((now.tm_hour * 60 + now.tm_min) / 1440.0);
+            DrawLineEx((Vector2){currentPanel.x, nowLineY}, (Vector2){currentPanel.x + panelWidth, nowLineY}, 2.0, (Color){255, 92, 64, 255});
+
             for (int i = 1; i < 24; ++i)
             {
                 char number[6];
