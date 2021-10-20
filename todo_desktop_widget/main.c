@@ -216,23 +216,30 @@ void LoadTasks(bool loadTemplate)
                 ++index;
             }
 
-            if (loadTemplate && count > 0)
+            if (loadTemplate)
             {
                 for (int day = 1; day <= daysInMonth[now.tm_mon]; ++day)
                 {
                     if (TextIsEqual(dayName, GetWeekday(day, now)))
                     {
-                        // printf("Found %s on %d\n", dayName, day);
-                        tasksCounts[day - 1] = count;
-                        tasksMap[day - 1] = (Task *)calloc(count, sizeof(Task));
-                        for (int i = 0; i < 5; ++i)
+                        if (count > 0)
                         {
-                            if (taskDays[i] == 0)
+                            tasksCounts[day - 1] = count;
+                            tasksMap[day - 1] = (Task *)calloc(count, sizeof(Task));
+                            for (int i = 0; i < 5; ++i)
                             {
-                                taskDays[i] = day;
-                                break;
+                                if (taskDays[i] == 0)
+                                {
+                                    taskDays[i] = day;
+                                    break;
+                                }
                             }
                         }
+                        else
+                        {
+                            daysCompleted[day - 1] = true;
+                        }
+                        // printf("Found %s on %d\n", dayName, day);
                     }
                 }
             }
@@ -413,6 +420,7 @@ void FreeTasks()
 
 int main()
 {
+    RemoveConsole();
     time_t timestamp = time(NULL);
     struct tm now = *localtime(&timestamp);
 
@@ -462,7 +470,7 @@ int main()
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_TRANSPARENT | FLAG_WINDOW_UNDECORATED);
     InitWindow(windowWidth, windowHeight, "test");
     SetTargetFPS(60);
-    //setWindowOnBottom(GetWindowHandle());
+    SetWindowOnBottom(GetWindowHandle());
     SetWindowPosition(LoadStorageValue(X_WINDOW_POSITION), LoadStorageValue(Y_WINDOW_POSITION));
 
     currentPanel = (Panel){0, 0};
@@ -492,7 +500,7 @@ int main()
 
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
         {
-            // setWindowOnBottom(GetWindowHandle());
+            SetWindowOnBottom(GetWindowHandle());
             int mouseX = GetMouseX();
             int mouseY = GetMouseY();
             int buttonCenter = panelOffsetY + dayButtonClicked * buttonSize + dayButtonClicked * buttonSpacing + buttonSize / 2;

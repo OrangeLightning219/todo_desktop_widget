@@ -1,2 +1,3 @@
-void setWindowOnBottom(void *handle);
-void removeWindowFromTaskbar(void *handle);
+void SetWindowOnBottom(void *handle);
+void RemoveWindowFromTaskbar(void *handle);
+void RemoveConsole();
