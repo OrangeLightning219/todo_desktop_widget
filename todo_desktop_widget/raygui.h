@@ -264,10 +264,8 @@ void GuiDrawRectangle(Rectangle rec, int borderWidth, Color borderColor, Color c
     }
 }
 
-bool GuiCheckBox(Rectangle bounds, const char *text, bool checked, Texture2D checkedTexture)
+bool GuiCheckBox(Rectangle bounds, const char *text, bool checked, Texture2D checkedTexture, Color checkColor)
 {
-    Color checkBoxColor = GRAY;
-
     Vector2 mousePoint = GetMousePosition();
 
     Rectangle totalBounds = {
@@ -277,10 +275,12 @@ bool GuiCheckBox(Rectangle bounds, const char *text, bool checked, Texture2D che
         bounds.height,
     };
 
+    Color checkBoxColor = checked ? checkColor : WHITE;
+
     // Check checkbox state
     if (CheckCollisionPointRec(mousePoint, totalBounds))
     {
-        checkBoxColor = WHITE;
+        checkBoxColor = checked ? WHITE : checkColor;
         if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON))
         {
             checked = !checked;
@@ -296,7 +296,7 @@ bool GuiCheckBox(Rectangle bounds, const char *text, bool checked, Texture2D che
                            bounds.width - 2 * (BORDER_WIDTH + CHECK_PADDING),
                            bounds.height - 2 * (BORDER_WIDTH + CHECK_PADDING)};
         // GuiDrawRectangle(check, 0, BLANK, RED);
-        DrawTextureEx(checkedTexture, (Vector2){bounds.x, bounds.y}, 1.0, bounds.width / 64, WHITE);
+        DrawTextureEx(checkedTexture, (Vector2){bounds.x, bounds.y}, 1.0, bounds.width / 64, checkColor);
     }
 
     return checked;

@@ -7,8 +7,9 @@
 #include "time.h"
 #include "tools.h"
 
-#define X_WINDOW_POSITION 31
-#define Y_WINDOW_POSITION 32
+#define X_WINDOW_POSITION 0
+#define Y_WINDOW_POSITION 1
+#define MONTH_CLEARED 2
 
 typedef struct Task
 {
@@ -17,6 +18,7 @@ typedef struct Task
     int minuteFrom, minuteTo;
     bool completed;
     Color color;
+    Color checkColor;
 } Task;
 
 typedef struct Panel
@@ -46,6 +48,8 @@ Texture2D checkTexture;
 
 char *weekdays[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 int daysInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+int weekdaysInMonth[7][5] = {0};
+bool daysCompleted[31] = {0};
 
 Task **tasksMap;
 int tasksCounts[31] = {0};
@@ -76,8 +80,10 @@ void CreatePanel(Shader panelShader, int xPositionLoc, int yPositionLoc, int pan
         panelY = buttonSize;
     }
     currentPanel = (Panel){buttonSize + panelOffsetX, panelY};
+
     float xPosition = (float)currentPanel.x;
     float yPosition = (float)(GetScreenHeight() - currentPanel.y - panelHeight);
+
     SetShaderValue(panelShader, xPositionLoc, &xPosition, SHADER_UNIFORM_FLOAT);
     SetShaderValue(panelShader, yPositionLoc, &yPosition, SHADER_UNIFORM_FLOAT);
     SetShaderValue(panelShader, panelSizeLoc, &(Vector2){panelWidth, panelHeight}, SHADER_UNIFORM_VEC2);
@@ -155,7 +161,10 @@ void LoadTasks(bool loadTemplate)
 {
     time_t timestamp = time(NULL);
     struct tm now = *localtime(&timestamp);
-    tasksMap = (Task **)malloc(daysInMonth[now.tm_mday] * sizeof(Task *));
+    if (loadTemplate)
+    {
+        tasksMap = (Task **)malloc(daysInMonth[now.tm_mon] * sizeof(Task *));
+    }
 
     char *fileBuffer;
     char *lineBuffer = (char *)calloc(64, sizeof(char));
@@ -207,13 +216,13 @@ void LoadTasks(bool loadTemplate)
                 ++index;
             }
 
-            if (loadTemplate)
+            if (loadTemplate && count > 0)
             {
-                for (int day = 1; day <= daysInMonth[now.tm_mday - 1]; ++day)
+                for (int day = 1; day <= daysInMonth[now.tm_mon]; ++day)
                 {
                     if (TextIsEqual(dayName, GetWeekday(day, now)))
                     {
-                        printf("Found %s on %d\n", dayName, day);
+                        // printf("Found %s on %d\n", dayName, day);
                         tasksCounts[day - 1] = count;
                         tasksMap[day - 1] = (Task *)calloc(count, sizeof(Task));
                         for (int i = 0; i < 5; ++i)
@@ -227,11 +236,7 @@ void LoadTasks(bool loadTemplate)
                     }
                 }
             }
-            else
-            {
-            }
-
-            printf("Found %d tasks for day %s\n", count, dayName);
+            // printf("Found %d tasks for day %s\n", count, dayName);
         }
         else if (lineBuffer[0] == '~')
         {
@@ -284,8 +289,10 @@ void LoadTasks(bool loadTemplate)
                             task->hourTo = atoi(hourTo);
                             task->minuteTo = atoi(minuteTo);
                             task->color = GetColor(hex2int(colorHex));
+                            Vector3 hsv = ColorToHSV(task->color);
+                            task->checkColor = ColorFromHSV(hsv.x, hsv.y, hsv.z + 0.5 > 1.0 ? 1.0 : hsv.z + 0.5);
                             task->completed = false;
-                            printf("Set task name %s at day %d - from: %d:%d to: %d:%d\n", task->name, day + 1, task->hourFrom, task->minuteFrom, task->hourTo, task->minuteTo);
+                            // printf("Set task name %s at day %d - from: %d:%d to: %d:%d\n", task->name, day + 1, task->hourFrom, task->minuteFrom, task->hourTo, task->minuteTo);
                             break;
                         }
                     }
@@ -293,6 +300,55 @@ void LoadTasks(bool loadTemplate)
             }
             else
             {
+                char dayNumber[3];
+                int tasksStart;
+                if (lineBuffer[3] != ' ')
+                {
+                    dayNumber[0] = lineBuffer[2];
+                    dayNumber[1] = lineBuffer[3];
+                    dayNumber[2] = '\0';
+                    tasksStart = 7;
+                }
+                else
+                {
+                    dayNumber[0] = lineBuffer[2];
+                    dayNumber[1] = '\0';
+                    tasksStart = 6;
+                }
+
+                int day = atoi(dayNumber);
+                Task *tasks = tasksMap[day - 1];
+                int taskStart = tasksStart;
+                char *taskName = (char *)malloc(128 * sizeof(char));
+                int tasksCompleted = 0;
+                for (int i = tasksStart; i < lineLength; ++i)
+                {
+                    if (lineBuffer[i] == ',')
+                    {
+                        for (int j = 0; j < i - taskStart; ++j)
+                        {
+                            taskName[j] = lineBuffer[taskStart + j];
+                        }
+                        taskName[i - taskStart] = '\0';
+                        taskStart = i + 2;
+                        for (int k = 0; k < tasksCounts[day - 1]; ++k)
+                        {
+                            Task *task = &tasks[k];
+                            if (TextIsEqual(taskName, task->name))
+                            {
+                                task->completed = true;
+                                ++tasksCompleted;
+                            }
+                        }
+                    }
+                }
+
+                if (tasksCompleted == tasksCounts[day - 1])
+                {
+                    daysCompleted[day - 1] = true;
+                }
+
+                free(taskName);
             }
         }
     }
@@ -301,29 +357,107 @@ void LoadTasks(bool loadTemplate)
     UnloadFileText(fileBuffer);
 }
 
+void SaveCompletedTasks()
+{
+    FILE *file = fopen("resources/completed.todo", "w");
+    if (file == NULL)
+    {
+        printf("Error opening file!\n");
+        return;
+    }
+    for (int weekday = 0; weekday < 7; ++weekday)
+    {
+        char *dayName = weekdays[weekday];
+        fprintf(file, "<%s>\n", dayName);
+        for (int i = 0; i < 5; ++i)
+        {
+            int day = weekdaysInMonth[weekday][i];
+            if (day != 0 && tasksCounts[day - 1] != 0)
+            {
+                fprintf(file, "~ %d | ", day);
+                Task *tasks = tasksMap[day - 1];
+                for (int j = 0; j < tasksCounts[day - 1]; ++j)
+                {
+                    Task *task = &tasks[j];
+                    if (task->completed)
+                    {
+                        fprintf(file, "%s, ", task->name);
+                    }
+                }
+                fprintf(file, "\n");
+            }
+        }
+    }
+    fprintf(file, "\n");
+    fclose(file);
+}
+
 void FreeTasks()
 {
     time_t timestamp = time(NULL);
     struct tm now = *localtime(&timestamp);
-    for (int i = 0; i < daysInMonth[now.tm_mday]; ++i)
+    for (int i = 0; i < daysInMonth[now.tm_mon]; ++i)
     {
         for (int j = 0; j < tasksCounts[i]; ++j)
         {
             free(tasksMap[i][j].name);
         }
-        free(tasksMap[i]);
+
+        if (tasksCounts[i] > 0)
+        {
+            free(tasksMap[i]);
+        }
     }
-    // free(tasksMap);
+    free(tasksMap);
 }
 
 int main()
 {
-    LoadTasks(true);
-    // LoadTasks(false);
-
     time_t timestamp = time(NULL);
     struct tm now = *localtime(&timestamp);
+
+    LoadTasks(true);
+    if (now.tm_mday == 1)
+    {
+        int monthCleared = LoadStorageValue(MONTH_CLEARED);
+        if (monthCleared != 1)
+        {
+            FILE *file = fopen("resources/completed.todo", "w");
+            if (file == NULL)
+            {
+                printf("Error opening file!\n");
+                return;
+            }
+            fclose(file);
+            SaveStorageValue(MONTH_CLEARED, 1);
+        }
+    }
+    else
+    {
+        SaveStorageValue(MONTH_CLEARED, 0);
+        LoadTasks(false);
+    }
+
     daysInMonth[1] = (now.tm_year + 1900) % 4 == 0 ? 29 : 28;
+
+    for (int day = 1; day <= daysInMonth[now.tm_mon]; ++day)
+    {
+        for (int weekday = 0; weekday < 7; ++weekday)
+        {
+            char *dayName = weekdays[weekday];
+            if (TextIsEqual(dayName, GetWeekday(day, now)))
+            {
+                for (int i = 0; i < 5; ++i)
+                {
+                    if (weekdaysInMonth[weekday][i] == 0)
+                    {
+                        weekdaysInMonth[weekday][i] = day;
+                        break;
+                    }
+                }
+            }
+        }
+    }
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_TRANSPARENT | FLAG_WINDOW_UNDECORATED);
     InitWindow(windowWidth, windowHeight, "test");
@@ -336,23 +470,6 @@ int main()
     RefreshWindow();
 
     Shader panelShader = LoadShader(0, "resources/panel_shader.fs");
-
-    bool daysCompleted[31];
-    if(now.tm_mday == 1)
-    {
-        for (int i = 0; i < 31; ++i)
-        {
-            daysCompleted[i] = false;
-            SaveStorageValue(i, 0);
-        }
-    }
-    else
-    {
-        for (int i = 0; i < 31; ++i)
-        {
-            daysCompleted[i] = LoadStorageValue(i) == 1 ? true : false;
-        }
-    }
 
     int mouseOffsetX = 0;
     int mouseOffsetY = 0;
@@ -383,6 +500,7 @@ int main()
             {
                 dayButtonClicked = -1;
                 SetWindowSize(windowWidth, windowHeight);
+                SaveCompletedTasks();
             }
             previousWindowPosition = GetWindowPosition();
             mouseOffsetX = GetMouseX();
@@ -437,6 +555,7 @@ int main()
                 buttonTexture = &baseButtons;
             }
 
+            int previousDayButtonClicked = dayButtonClicked;
             if (GuiTextureButtonEx((Rectangle){0, panelOffsetY + i * buttonSize + i * buttonSpacing, buttonSize, buttonSize}, "", *buttonTexture, (Rectangle){(i % 7) * buttonSize, (i / 7) * buttonSize, buttonSize, buttonSize}))
             {
                 if (dayButtonClicked == i)
@@ -448,6 +567,11 @@ int main()
                 {
                     dayButtonClicked = i;
                     CreatePanel(panelShader, xPositionLoc, yPositionLoc, panelSizeLoc);
+                }
+
+                if (previousDayButtonClicked != -1 && dayButtonClicked != previousDayButtonClicked)
+                {
+                    SaveCompletedTasks();
                 }
             }
         }
@@ -476,18 +600,27 @@ int main()
             }
 
             Task *tasks = tasksMap[dayButtonClicked];
+            bool allTasksCompleted = true;
             for (int i = 0; i < tasksCounts[dayButtonClicked]; ++i)
             {
                 Task *task = &tasks[i];
                 int taskFromY = currentPanel.y + panelHeight * ((task->hourFrom * 60 + task->minuteFrom) / 1440.0);
                 int taskToY = currentPanel.y + panelHeight * ((task->hourTo * 60 + task->minuteTo) / 1440.0);
+
                 DrawRectangle(currentPanel.x + taskOffsetX, taskFromY, panelWidth - taskOffsetX - 15, taskToY - taskFromY, task->color);
 
-                DrawTextEx(headerFont, task->name, (Vector2){currentPanel.x + taskOffsetX + 10, taskToY - buttonSize / 2}, buttonSize / 2, 1, WHITE);
+                DrawTextEx(headerFont, task->name, (Vector2){currentPanel.x + taskOffsetX + 15, taskToY - buttonSize / 2 - 5}, buttonSize / 2, 1, WHITE);
 
                 int checkboxX = currentPanel.x + taskOffsetX + panelWidth - taskOffsetX - 15 - 60;
-                task->completed = GuiCheckBox((Rectangle){checkboxX, taskFromY + (taskToY - taskFromY) / 2 - 20, 40, 40}, NULL, task->completed, checkTexture);
+                task->completed = GuiCheckBox((Rectangle){checkboxX, taskFromY + (taskToY - taskFromY) / 2 - 20, 40, 40}, NULL, task->completed, checkTexture, task->checkColor);
+                // task->completed = GuiCheckBox((Rectangle){checkboxX, taskFromY, 40, taskToY - taskFromY}, NULL, task->completed, checkTexture, task->checkColor);
+                if (!task->completed)
+                {
+                    allTasksCompleted = false;
+                }
             }
+
+            daysCompleted[dayButtonClicked] = allTasksCompleted;
 
             int nowLineY = currentPanel.y + panelHeight * ((now.tm_hour * 60 + now.tm_min) / 1440.0);
             DrawLineEx((Vector2){currentPanel.x, nowLineY}, (Vector2){currentPanel.x + panelWidth, nowLineY}, 2.0, (Color){255, 92, 64, 255});
