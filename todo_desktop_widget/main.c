@@ -468,7 +468,7 @@ int main()
     }
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_TRANSPARENT | FLAG_WINDOW_UNDECORATED);
-    InitWindow(windowWidth, windowHeight, "test");
+    InitWindow(windowWidth, windowHeight, "Todo Desktop Widget");
     SetTargetFPS(60);
     SetWindowOnBottom(GetWindowHandle());
     SetWindowPosition(LoadStorageValue(X_WINDOW_POSITION), LoadStorageValue(Y_WINDOW_POSITION));
