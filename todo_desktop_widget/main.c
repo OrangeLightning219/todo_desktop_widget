@@ -178,6 +178,11 @@ void LoadTasks(bool loadTemplate)
         fileBuffer = LoadFileText("resources/completed.todo");
     }
 
+    if (fileBuffer == NULL && !loadTemplate)
+    {
+        return;
+    }
+
     int fileLength = 0;
     while (fileBuffer[fileLength] != '\0')
     {
@@ -424,28 +429,6 @@ int main()
     time_t timestamp = time(NULL);
     struct tm now = *localtime(&timestamp);
 
-    LoadTasks(true);
-    if (now.tm_mday == 1)
-    {
-        int monthCleared = LoadStorageValue(MONTH_CLEARED);
-        if (monthCleared != 1)
-        {
-            FILE *file = fopen("resources/completed.todo", "w");
-            if (file == NULL)
-            {
-                printf("Error opening file!\n");
-                return;
-            }
-            fclose(file);
-            SaveStorageValue(MONTH_CLEARED, 1);
-        }
-    }
-    else
-    {
-        SaveStorageValue(MONTH_CLEARED, 0);
-        LoadTasks(false);
-    }
-
     daysInMonth[1] = (now.tm_year + 1900) % 4 == 0 ? 29 : 28;
 
     for (int day = 1; day <= daysInMonth[now.tm_mon]; ++day)
@@ -469,6 +452,30 @@ int main()
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_TRANSPARENT | FLAG_WINDOW_UNDECORATED);
     InitWindow(windowWidth, windowHeight, "Todo Desktop Widget");
+
+    LoadTasks(true);
+    if (now.tm_mday == 1)
+    {
+        int monthCleared = LoadStorageValue(MONTH_CLEARED);
+        if (monthCleared != 1)
+        {
+            FILE *file = fopen("resources/completed.todo", "w");
+            if (file == NULL)
+            {
+                printf("Error opening file!\n");
+                return;
+            }
+            fclose(file);
+            SaveStorageValue(MONTH_CLEARED, 1);
+        }
+    }
+    else
+    {
+        SaveStorageValue(MONTH_CLEARED, 0);
+    }
+
+    LoadTasks(false);
+
     SetTargetFPS(60);
     SetWindowOnBottom(GetWindowHandle());
     SetWindowPosition(LoadStorageValue(X_WINDOW_POSITION), LoadStorageValue(Y_WINDOW_POSITION));
@@ -617,11 +624,10 @@ int main()
 
                 DrawRectangle(currentPanel.x + taskOffsetX, taskFromY, panelWidth - taskOffsetX - 15, taskToY - taskFromY, task->color);
 
-                DrawTextEx(headerFont, task->name, (Vector2){currentPanel.x + taskOffsetX + 15, taskToY - buttonSize / 2 - 5}, buttonSize / 2, 1, WHITE);
+                DrawTextEx(headerFont, task->name, (Vector2){currentPanel.x + taskOffsetX + 15, taskToY - buttonSize / 2}, buttonSize / 2, 1, WHITE);
 
-                int checkboxX = currentPanel.x + taskOffsetX + panelWidth - taskOffsetX - 15 - 60;
-                task->completed = GuiCheckBox((Rectangle){checkboxX, taskFromY + (taskToY - taskFromY) / 2 - 20, 40, 40}, NULL, task->completed, checkTexture, task->checkColor);
-                // task->completed = GuiCheckBox((Rectangle){checkboxX, taskFromY, 40, taskToY - taskFromY}, NULL, task->completed, checkTexture, task->checkColor);
+                int checkboxX = currentPanel.x + panelWidth - 15 - 25;
+                task->completed = GuiCheckBox((Rectangle){checkboxX, taskFromY + (taskToY - taskFromY) - 25, 20, 20}, NULL, task->completed, checkTexture, task->checkColor);
                 if (!task->completed)
                 {
                     allTasksCompleted = false;
@@ -633,11 +639,12 @@ int main()
             int nowLineY = currentPanel.y + panelHeight * ((now.tm_hour * 60 + now.tm_min) / 1440.0);
             DrawLineEx((Vector2){currentPanel.x, nowLineY}, (Vector2){currentPanel.x + panelWidth, nowLineY}, 2.0, (Color){255, 92, 64, 255});
 
-            for (int i = 1; i < 24; ++i)
+            for (int i = panelHeight / 24; i < panelHeight; i += panelHeight / 24)
             {
                 char number[6];
-                snprintf(number, 6, i < 10 ? "0%d:00" : "%d:00", i);
-                DrawTextEx(hourFont, number, (Vector2){currentPanel.x + 5, currentPanel.y + i * buttonSize - 18}, 18, 1, DARKGRAY);
+                int hour = i / (panelHeight / 24);
+                snprintf(number, 6, hour < 10 ? "0%d:00" : "%d:00", hour);
+                DrawTextEx(hourFont, number, (Vector2){currentPanel.x + 5, currentPanel.y + i - 18}, 18, 1, DARKGRAY);
             }
         }
 
