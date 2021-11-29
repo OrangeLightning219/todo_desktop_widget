@@ -83,10 +83,11 @@ void CreatePanel(Shader panelShader, int xPositionLoc, int yPositionLoc, int pan
 
     float xPosition = (float)currentPanel.x;
     float yPosition = (float)(GetScreenHeight() - currentPanel.y - panelHeight);
-
+    float radius = (float)buttonSize;
     SetShaderValue(panelShader, xPositionLoc, &xPosition, SHADER_UNIFORM_FLOAT);
     SetShaderValue(panelShader, yPositionLoc, &yPosition, SHADER_UNIFORM_FLOAT);
     SetShaderValue(panelShader, panelSizeLoc, &(Vector2){panelWidth, panelHeight}, SHADER_UNIFORM_VEC2);
+    SetShaderValue(panelShader, GetShaderLocation(panelShader, "cornerRadius"), &radius, SHADER_UNIFORM_FLOAT);
 }
 
 void RefreshWindow()
@@ -94,8 +95,10 @@ void RefreshWindow()
     time_t timestamp = time(NULL);
     struct tm now = *localtime(&timestamp);
 
+    buttonSpacing = windowHeight * 0.005;
     buttonSize = (windowHeight / 31) - buttonSpacing;
     windowWidth = buttonSize;
+    extendedWindowWidth = 9 * buttonSize;
     panelWidth = extendedWindowWidth - buttonSize - panelOffsetX;
     panelHeight = 24 * buttonSize;
     panelOffsetY = (windowHeight - (((buttonSpacing + buttonSize) * daysInMonth[now.tm_mon]) - buttonSpacing)) / 2;
@@ -106,7 +109,7 @@ void RefreshWindow()
     baseButtons = LoadTextureFromImage(baseButtonsImage);
 
     Image completedButtonsImage = ImageFromImage(baseButtonsImage, (Rectangle){0, 0, baseButtonsImage.width, baseButtonsImage.height});
-    ImageColorTint(&completedButtonsImage, (Color){255, 92, 64, 255});
+    ImageColorTint(&completedButtonsImage, (Color){116, 34, 245, 255});
     completedButtons = LoadTextureFromImage(completedButtonsImage);
 
     Image currentButtonsImage = ImageFromImage(baseButtonsImage, (Rectangle){0, 0, baseButtonsImage.width, baseButtonsImage.height});
@@ -626,8 +629,8 @@ int main()
 
                 DrawTextEx(headerFont, task->name, (Vector2){currentPanel.x + taskOffsetX + 15, taskToY - buttonSize / 2}, buttonSize / 2, 1, WHITE);
 
-                int checkboxX = currentPanel.x + panelWidth - 15 - 25;
-                task->completed = GuiCheckBox((Rectangle){checkboxX, taskFromY + (taskToY - taskFromY) - 25, 20, 20}, NULL, task->completed, checkTexture, task->checkColor);
+                int checkboxX = currentPanel.x + panelWidth - 15 - 5 - buttonSize / 3;
+                task->completed = GuiCheckBox((Rectangle){checkboxX, taskFromY + (taskToY - taskFromY) - 5 - buttonSize / 3, buttonSize / 3, buttonSize / 3}, NULL, task->completed, checkTexture, task->checkColor);
                 if (!task->completed)
                 {
                     allTasksCompleted = false;

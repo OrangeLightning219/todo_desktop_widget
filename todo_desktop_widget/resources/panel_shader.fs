@@ -3,6 +3,7 @@
 uniform vec2 uPanelSize;
 uniform float xPosition;
 uniform float yPosition;
+uniform float cornerRadius;
 
 float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float Radius) 
 {
@@ -17,11 +18,8 @@ void main()
     // vec2 location = vec2(xPosition, yPosition + uPanelSize.y);
     vec2 location = vec2(xPosition, yPosition);
     
-    // The radius of the corners (in pixels).
-    float radius = 60.0f;
-    
     // Calculate distance to edge.   
-    float distance = roundedBoxSDF(gl_FragCoord.xy - location - (size / 2.0f), size / 2.0f, radius);
+    float distance = roundedBoxSDF(gl_FragCoord.xy - location - (size / 2.0f), size / 2.0f, cornerRadius);
     
     // Smooth the result (free antialiasing).
     float smoothedAlpha =  1.0f - smoothstep(0.0f, 1.0f, distance);

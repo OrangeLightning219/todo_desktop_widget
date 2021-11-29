@@ -234,7 +234,8 @@ bool GuiTextureButtonEx(Rectangle bounds, const char *text, Texture2D texture, R
         }
         else
         {
-            tintColor = (Color){255, 150, 150, 255};
+            //tintColor = (Color){255, 150, 150, 255};
+            tintColor = (Color){ 216, 191, 255, 255 };
         }
     }
 
